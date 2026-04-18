@@ -1,10 +1,30 @@
 import React, { useMemo, useState } from "react";
 import { useSYNK, GoalType, Goal } from "../Store";
 import { motion, AnimatePresence } from "motion/react";
+import { useMotionValue, useTransform } from "motion/react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   Plus, Target, Layout,
   ChevronRight, ChevronLeft, ChevronDown,
-  MoreVertical, Trash2, CalendarDays, Upload, Video, X
+  MoreVertical, Trash2, CalendarDays, Upload, Video, X,
+  Check,
+  Info
 } from "lucide-react";
 import { cn } from "../utils";
 
@@ -41,6 +61,7 @@ export default function GoalVault() {
   const [scheduleById, setScheduleById] = useLocalStorageState<ScheduleMap>("synkify.scheduleById", {});
   const [dateById, setDateById] = useLocalStorageState<DateMap>("synkify.dateById", {});
   const [recurrenceById, setRecurrenceById] = useLocalStorageState<RecurrenceMap>("synkify.recurrenceById", {});
+  const [customOrder, setCustomOrder] = useLocalStorageState<string[]>("synkify.directiveOrder", []);
   const [urgencyFilter, setUrgencyFilter] = useState<Priority | "all">("all");
   const [proofTargetId, setProofTargetId] = useState<string | null>(null);
   const [draggingGoalId, setDraggingGoalId] = useState<string | null>(null);
@@ -81,9 +102,37 @@ export default function GoalVault() {
     setShowTaskModal(false);
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   const filteredGoals = useMemo(() => {
-    if (urgencyFilter === "all") return goals;
-    return goals.filter((goal) => (priorityById[goal.id] || "medium") === urgencyFilter);
+    let base = goals;
+    if (urgencyFilter !== "all") {
+      base = goals.filter((goal) => (priorityById[goal.id] || "medium") === urgencyFilter);
+    }
+    
+    const priorityMap = { high: 0, medium: 1, low: 2 };
+
+    const sorted = [...base].sort((a, b) => {
+      const pA = priorityMap[priorityById[a.id] || "medium"];
+      const pB = priorityMap[priorityById[b.id] || "medium"];
+      
+      if (pA !== pB) return pA - pB;
+      
+      const timeA = a.createdAt?.seconds || 0;
+      const timeB = b.createdAt?.seconds || 0;
+      return timeB - timeA;
+    });
+
+    return sorted;
   }, [goals, urgencyFilter, priorityById]);
 
   const requestCompleteGoal = (id: string) => setProofTargetId(id);
@@ -314,11 +363,11 @@ export default function GoalVault() {
                     <Plus className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="max-h-[500px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                <div className="max-h-[500px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                   {filteredGoals.map((goal) => (
-                    <div key={goal.id}>
-                      <DirectiveCard
-                        goal={goal}
+                    <DirectiveCard
+                      key={goal.id}
+                      goal={goal}
                       priority={priorityById[goal.id] || "medium"}
                       scheduledDate={normalizeTaskDate(dateById[goal.id])}
                       scheduledTime={normalizeScheduleTime(scheduleById[goal.id])}
@@ -330,7 +379,6 @@ export default function GoalVault() {
                       onComplete={() => requestCompleteGoal(goal.id)}
                       onDelete={() => deleteGoal(goal.id)}
                     />
-                  </div>
                   ))}
                   {goals.length === 0 && <EmptyVault />}
                 </div>
@@ -398,64 +446,128 @@ function DirectiveCard({
   onSetScheduledTime: (time: string) => void,
   onSetRecurrence: (value: { type: RecurrenceType; days: number[] }) => void,
   onComplete: () => void,
-  onDelete: () => void
+  onDelete: () => void,
+  key?: string
 }) {
+  const swipeX = useMotionValue(0);
+  const swipeBg = useTransform(swipeX, [0, 80], ["rgba(0,0,0,0)", "rgba(34, 197, 94, 0.1)"]);
+  const successOpacity = useTransform(swipeX, [20, 80], [0, 1]);
+  const iconScale = useTransform(swipeX, [0, 60], [0.5, 1.2]);
+  const iconRotate = useTransform(swipeX, [0, 100], [-45, 0]);
+  const hintOpacity = useTransform(swipeX, [0, 40], [1, 0]);
+
+  const handleDragEnd = (_: any, info: any) => {
+    if (info.offset.x > 80 && !goal.completed) {
+      onComplete();
+    }
+    swipeX.set(0);
+  };
+
+  const goalTypeMeta = {
+    pulse: { label: "PULSE", color: "text-zinc-400 bg-white" },
+    orbit: { label: "ORBIT", color: "text-zinc-600 bg-white" },
+    galaxy: { label: "GALAXY", color: "text-black bg-white" }
+  };
+
+  const priorityMeta = {
+    high: { label: "!", color: "text-red-500" },
+    medium: { label: "•", color: "text-zinc-400" },
+    low: { label: "v", color: "text-zinc-200" }
+  };
+
   return (
-    <div className={cn(
-      "minimal-card p-5 group flex flex-col gap-4",
-      goal.completed && "opacity-50"
-    )}>
-       <div className="flex justify-between items-center">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-            {goal.type} protocol
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={priority}
-              onChange={(e) => onSetPriority(e.target.value as Priority)}
-              className="bg-transparent border-none text-[10px] uppercase font-bold text-zinc-500 focus:outline-none cursor-pointer"
-            >
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-            <button onClick={onDelete} className="text-zinc-200 hover:text-zinc-900 transition-colors">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-       </div>
-       
-       <h3 className={cn("text-base font-bold tracking-tight text-zinc-900", goal.completed && "line-through")}>
-          {goal.title}
-       </h3>
+    <div className="relative overflow-hidden rounded-xl border border-zinc-50 shadow-sm">
+      <motion.div 
+        style={{ x: swipeX, backgroundColor: swipeBg }}
+        drag={goal.completed ? false : "x"}
+        dragConstraints={{ left: 0, right: 120 }}
+        dragElastic={0.1}
+        onDragEnd={handleDragEnd}
+        className={cn(
+          "bg-white px-3 py-2 flex items-center gap-3 relative z-10 transition-opacity",
+          goal.completed && "opacity-40"
+        )}
+      >
+        <div className="w-1.5 h-1.5 rounded-full bg-zinc-100 shrink-0" />
 
-       <div className="flex gap-4">
-          <input
-            type="date"
-            value={scheduledDate}
-            onChange={(e) => onSetScheduledDate(e.target.value)}
-            className="flex-1 bg-zinc-50 border border-zinc-100 rounded-lg text-xs p-2 text-zinc-600 focus:outline-none"
-          />
-          <input
-            type="time"
-            step={1}
-            value={scheduledTime}
-            onChange={(e) => onSetScheduledTime(e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value)}
-            className="flex-1 bg-zinc-50 border border-zinc-100 rounded-lg text-xs p-2 text-zinc-600 focus:outline-none"
-          />
-       </div>
+        <div className={cn(
+          "px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-widest shrink-0 border border-zinc-50",
+          goalTypeMeta[goal.type as GoalType]?.color
+        )}>
+          {goal.type}
+        </div>
 
-       <div className="flex items-center justify-between pt-2">
-          <button 
-            onClick={onComplete}
+        <div className="flex-1 flex flex-col min-w-0">
+          <h3 className={cn("text-[11px] font-bold tracking-tight text-zinc-800 truncate leading-tight", goal.completed && "line-through")}>
+            {goal.title}
+          </h3>
+          <div className="flex items-center gap-2 mt-0.5">
+             <div className="relative group/date">
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => onSetScheduledDate(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <span className="text-[7px] font-bold text-zinc-400 uppercase tracking-tighter hover:text-zinc-900 transition-colors">
+                  {new Date(scheduledDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </span>
+             </div>
+             <div className="relative group/time">
+                <input
+                  type="time"
+                  step={1}
+                  value={scheduledTime}
+                  onChange={(e) => onSetScheduledTime(e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <span className="text-[7px] font-bold text-zinc-400 uppercase tracking-tighter hover:text-zinc-900 transition-colors">
+                  {formatTime(scheduledTime).slice(0, 5)}
+                </span>
+             </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <select
+            value={priority}
+            onChange={(e) => onSetPriority(e.target.value as Priority)}
             className={cn(
-              "px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all",
-              goal.completed ? "bg-zinc-100 text-zinc-400" : "bg-black text-white hover:bg-zinc-800"
+              "bg-transparent border-none text-[8px] font-black focus:outline-none cursor-pointer appearance-none px-1",
+              priorityMeta[priority]?.color
             )}
           >
-            {goal.completed ? "Synchronized" : "Manifest DONE"}
+            <option value="high">HIGH</option>
+            <option value="medium">MED</option>
+            <option value="low">LOW</option>
+          </select>
+          <button onClick={onDelete} className="text-zinc-100 hover:text-red-500 transition-colors p-1">
+            <Trash2 className="w-3 h-3" />
           </button>
-       </div>
+        </div>
+
+        {/* Swipe Hint */}
+        {!goal.completed && (
+          <motion.div 
+            style={{ opacity: hintOpacity }}
+            className="flex items-center gap-0.5 opacity-20 pointer-events-none transition-opacity"
+          >
+            <span className="text-[6px] font-black tracking-widest text-zinc-300 uppercase">SWIPE</span>
+            <ChevronRight className="w-2.5 h-2.5 text-zinc-100" />
+          </motion.div>
+        )}
+      </motion.div>
+
+      {/* Swipe Success Background */}
+      <motion.div 
+        style={{ opacity: successOpacity }}
+        className="absolute inset-y-0 left-0 w-full bg-green-50/50 flex items-center px-4 pointer-events-none"
+      >
+         <motion.div style={{ scale: iconScale, rotate: iconRotate }} className="mr-2">
+           <Check className="w-4 h-4 text-green-600" />
+         </motion.div>
+         <span className="text-[8px] font-black text-green-600 uppercase tracking-[0.3em]">COMPLETE &gt;&gt;</span>
+      </motion.div>
     </div>
   );
 }
@@ -514,16 +626,22 @@ function TaskCreateModal({
             autoFocus
           />
           <div className="grid grid-cols-2 gap-3">
-            <select value={draftTaskType} onChange={(e) => setDraftTaskType(e.target.value as GoalType)} className="bg-zinc-50 border border-zinc-100 px-3 py-2 text-xs font-bold uppercase tracking-widest text-zinc-500 rounded-xl">
-              <option value="pulse">pulse</option>
-              <option value="orbit">orbit</option>
-              <option value="galaxy">galaxy</option>
-            </select>
-            <select value={draftTaskPriority} onChange={(e) => setDraftTaskPriority(e.target.value as Priority)} className="bg-zinc-50 border border-zinc-100 px-3 py-2 text-xs font-bold uppercase tracking-widest text-zinc-500 rounded-xl">
-              <option value="high">high</option>
-              <option value="medium">medium</option>
-              <option value="low">low</option>
-            </select>
+            <div className="flex flex-col gap-1">
+              <span className="text-[8px] font-bold text-zinc-300 uppercase tracking-widest px-1">PROTOCOL_TYPE</span>
+              <select value={draftTaskType} onChange={(e) => setDraftTaskType(e.target.value as GoalType)} className="bg-zinc-50 border border-zinc-100 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 rounded-xl focus:outline-none">
+                <option value="pulse">pulse // small-scale</option>
+                <option value="orbit" selected>orbit // recurring</option>
+                <option value="galaxy">galaxy // expansion</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[8px] font-bold text-zinc-300 uppercase tracking-widest px-1">PRIORITY_LEVEL</span>
+              <select value={draftTaskPriority} onChange={(e) => setDraftTaskPriority(e.target.value as Priority)} className="bg-zinc-50 border border-zinc-100 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 rounded-xl focus:outline-none">
+                <option value="high">critical</option>
+                <option value="medium">stable</option>
+                <option value="low">minor</option>
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <input type="date" value={draftTaskDate} onChange={(e) => setDraftTaskDate(e.target.value)} className="bg-zinc-50 border border-zinc-100 px-3 py-2 text-xs text-zinc-600 rounded-xl" />

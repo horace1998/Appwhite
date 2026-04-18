@@ -1,7 +1,7 @@
-import React, { useState, useRef } from "react";
-import { useSYNK, Memory } from "../Store";
+import React, { useState, useRef, useEffect } from "react";
+import { useSYNK, Memory, Goal, GoalType } from "../Store";
 import ThreeBackground from "../ThreeBackground";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, useTransform } from "motion/react";
 import { cn } from "../utils";
 import { 
   Layout, 
@@ -16,14 +16,21 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Tag
+  Tag,
+  Check
 } from "lucide-react";
 
 export default function RitualDashboard() {
   const { 
     stats, completionRate, goals, bias, setBias, roomAtmosphere,
-    decorations, addDecoration, removeDecoration, memories
+    decorations, addDecoration, removeDecoration, memories, completeGoal
   } = useSYNK();
+
+  // Replicate metadata storage to match GoalVault
+  const [dateById] = useLocalStorageState<Record<string, string>>("synkify.dateById", {});
+  const [scheduleById] = useLocalStorageState<Record<string, string>>("synkify.scheduleById", {});
+  const [priorityById] = useLocalStorageState<Record<string, string>>("synkify.priorityById", {});
+
   const [showDesigner, setShowDesigner] = useState(false);
   const [focusedMemory, setFocusedMemory] = useState<Memory | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -77,7 +84,20 @@ export default function RitualDashboard() {
     }
   };
 
-  const activeGoals = goals.filter(g => !g.completed).slice(0, 5);
+  const activeGoals = React.useMemo(() => {
+    const priorityMap: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    return [...goals]
+      .filter(g => !g.completed)
+      .sort((a, b) => {
+        const pA = priorityMap[priorityById[a.id] || "medium"];
+        const pB = priorityMap[priorityById[b.id] || "medium"];
+        if (pA !== pB) return pA - pB;
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      })
+      .slice(0, 5);
+  }, [goals, priorityById]);
 
   return (
     <div className="w-full h-full flex flex-col p-6 lg:p-10 pb-32 overflow-y-auto custom-scrollbar overflow-x-hidden bg-white text-zinc-900">
@@ -217,12 +237,15 @@ export default function RitualDashboard() {
           {/* Minimalist Cards */}
           <div className="minimal-card p-6 flex flex-col gap-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 border-b border-zinc-100 pb-2">Directives</h4>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {activeGoals.map(g => (
-                <div key={g.id} className="flex flex-col border-b border-zinc-50 pb-2">
-                  <span className="text-sm font-semibold truncate">{g.title}</span>
-                  <span className="text-[10px] uppercase font-bold text-zinc-300">{g.type}</span>
-                </div>
+                <CompactDirectiveRow 
+                  key={g.id} 
+                  goal={g} 
+                  onComplete={() => completeGoal(g.id)}
+                  scheduledDate={dateById[g.id] || ""}
+                  scheduledTime={scheduleById[g.id] || "09:00:00"}
+                />
               ))}
               {activeGoals.length === 0 && <span className="text-xs text-zinc-300 italic">No active protocols.</span>}
             </div>
@@ -315,5 +338,113 @@ export default function RitualDashboard() {
       </div>
     </div>
   );
+}
+
+function CompactDirectiveRow({ 
+  goal, 
+  onComplete, 
+  scheduledDate, 
+  scheduledTime 
+}: { 
+  goal: Goal, 
+  onComplete: () => void,
+  scheduledDate: string,
+  scheduledTime: string,
+  key?: string
+}) {
+  const swipeX = useMotionValue(0);
+  const swipeBg = useTransform(swipeX, [0, 80], ["rgba(0,0,0,0)", "rgba(34, 197, 94, 0.1)"]);
+  const successOpacity = useTransform(swipeX, [20, 80], [0, 1]);
+  const iconScale = useTransform(swipeX, [0, 60], [0.5, 1.2]);
+  const iconRotate = useTransform(swipeX, [0, 80], [-45, 0]);
+  const hintOpacity = useTransform(swipeX, [0, 40], [1, 0]);
+
+  const handleDragEnd = (_: any, info: any) => {
+    if (info.offset.x > 80 && !goal.completed) {
+      onComplete();
+    }
+    swipeX.set(0);
+  };
+
+  const goalTypeMeta = {
+    pulse: { label: "PULSE", color: "text-zinc-400 bg-white" },
+    orbit: { label: "ORBIT", color: "text-zinc-600 bg-white" },
+    galaxy: { label: "GALAXY", color: "text-black bg-white" }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-zinc-50 shadow-sm">
+      <motion.div
+        drag={goal.completed ? false : "x"}
+        dragConstraints={{ left: 0, right: 120 }}
+        dragElastic={0.1}
+        onDragEnd={handleDragEnd}
+        style={{ x: swipeX, backgroundColor: swipeBg }}
+        className={cn(
+          "bg-white px-3 py-2 flex items-center gap-3 relative z-10 cursor-grab active:cursor-grabbing transition-opacity",
+          goal.completed && "opacity-40"
+        )}
+      >
+        <div className="w-1.5 h-1.5 rounded-full bg-zinc-100 shrink-0" />
+
+        <div className={cn(
+          "px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-widest shrink-0 border border-zinc-50",
+          goalTypeMeta[goal.type as GoalType]?.color
+        )}>
+          {goal.type}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className={cn("text-[11px] font-bold text-zinc-800 truncate leading-tight", goal.completed && "line-through")}>
+            {goal.title}
+          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            {scheduledDate && (
+              <span className="text-[7px] font-bold text-zinc-400 uppercase tracking-tighter">
+                {new Date(scheduledDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+            {scheduledTime && (
+              <span className="text-[7px] font-bold text-zinc-400 uppercase tracking-tighter">
+                {scheduledTime.slice(0, 5)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Swipe Hint */}
+        {!goal.completed && (
+          <motion.div style={{ opacity: hintOpacity }} className="flex items-center gap-0.5 opacity-20 pointer-events-none transition-opacity">
+            <span className="text-[6px] font-black tracking-widest text-zinc-300 uppercase">SWIPE</span>
+            <ChevronRight className="w-2.5 h-2.5 text-zinc-100" />
+          </motion.div>
+        )}
+      </motion.div>
+
+      {/* Swipe Success Background */}
+      <motion.div 
+        style={{ opacity: successOpacity }}
+        className="absolute inset-0 bg-green-50/50 flex items-center px-4 pointer-events-none"
+      >
+        <motion.div style={{ scale: iconScale, rotate: iconRotate }} className="mr-2">
+          <Check className="w-4 h-4 text-green-600" />
+        </motion.div>
+        <span className="text-[8px] font-black text-green-600 uppercase tracking-[0.3em]">COMPLETE &gt;&gt;</span>
+      </motion.div>
+    </div>
+  );
+}
+
+function useLocalStorageState<T>(key: string, initial: T) {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : initial;
+    } catch { return initial; }
+  });
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+  return [value, setValue] as const;
 }
 
