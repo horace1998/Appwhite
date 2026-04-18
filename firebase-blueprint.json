@@ -21,6 +21,7 @@
         },
         "customName": { "type": "string" },
         "customPhoto": { "type": "string" },
+        "username": { "type": "string" },
         "customBackground": { "type": "string" },
         "roomAtmosphere": { "type": "string" },
         "directive": { "type": "string" },
@@ -51,6 +52,8 @@
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
+        "authorUsername": { "type": "string" },
+        "authorPhoto": { "type": "string" },
         "caption": { "type": "string" },
         "media": {
           "type": "array",
@@ -70,9 +73,24 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "media", "createdAt"]
+    },
+    "usernames": {
+      "title": "Username Mapping",
+      "description": "A mapping of unique usernames to user IDs.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "username": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username"]
     }
   },
   "firestore": {
+    "/usernames/{username}": {
+      "schema": "usernames",
+      "description": "Unique username registry."
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "Storage for user profile metadata and stats."

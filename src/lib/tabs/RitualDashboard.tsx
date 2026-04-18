@@ -139,7 +139,6 @@ export default function RitualDashboard() {
                           <img src={memory.media[0].url} className="w-full h-full object-cover transition-all duration-500" referrerPolicy="no-referrer" />
                         )}
                       </div>
-                      <span className="text-[6px] text-zinc-400 font-bold font-mono text-center truncate">{memory.id.slice(0, 8)}</span>
                     </div>
                   </motion.div>
                 );

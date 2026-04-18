@@ -39,6 +39,8 @@ export interface MemoryMedia {
 export interface Memory {
   id: string;
   uid: string;
+  authorUsername?: string;
+  authorPhoto?: string;
   caption: string;
   media: MemoryMedia[];
   taggedTaskId?: string;
@@ -69,6 +71,9 @@ interface SYNKContextType {
   setCustomName: (name: string) => Promise<void>;
   customPhoto: string | null;
   setCustomPhoto: (url: string | null) => Promise<void>;
+  username: string;
+  setUsername: (name: string) => Promise<boolean>;
+  checkUsername: (name: string) => Promise<boolean>;
   roomAtmosphere: string;
   setRoomAtmosphere: (atmos: string) => Promise<void>;
   directive: string;
@@ -105,6 +110,7 @@ export function SYNKProvider({ children }: { children: ReactNode }) {
   const [bias, setBias] = useState<MemberBias>('None');
   const [customName, setCustomNameState] = useState<string>('');
   const [customPhoto, setCustomPhoto] = useState<string | null>(null);
+  const [username, setUsernameState] = useState<string>('');
   const lastRemoteName = useRef<string>('');
   const [roomAtmosphere, setRoomAtmosphere] = useState<string>('Standard');
   const [directive, setDirective] = useState<string>('Archiving');
@@ -177,6 +183,9 @@ export function SYNKProvider({ children }: { children: ReactNode }) {
         if (data.customName !== undefined) {
           lastRemoteName.current = data.customName;
           setCustomNameState(data.customName);
+        }
+        if (data.username !== undefined) {
+          setUsernameState(data.username);
         }
         setCustomPhoto(data.customPhoto || null);
         setCustomBackground(data.customBackground || null);
@@ -275,6 +284,53 @@ export function SYNKProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const checkUsername = async (name: string): Promise<boolean> => {
+    if (!name || name.length < 3) return false;
+    const cleanName = name.toLowerCase().trim();
+    const nameRef = doc(db, 'usernames', cleanName);
+    try {
+      const snap = await getDoc(nameRef);
+      if (!snap.exists()) return true;
+      // If it exists, check if it's owned by the current user
+      return snap.data().uid === user?.uid;
+    } catch (e) {
+      console.error("Username check failed", e);
+      return false;
+    }
+  };
+
+  const setUsername = async (name: string): Promise<boolean> => {
+    if (!user) return false;
+    const cleanName = name.trim();
+    const lowerName = cleanName.toLowerCase();
+    
+    // 1. Check if available
+    const available = await checkUsername(lowerName);
+    if (!available) return false;
+
+    try {
+      // 2. Clear old username if exists
+      if (username && username.toLowerCase() !== lowerName) {
+        await deleteDoc(doc(db, 'usernames', username.toLowerCase()));
+      }
+
+      // 3. Claim new username
+      await setDoc(doc(db, 'usernames', lowerName), {
+        uid: user.uid,
+        username: cleanName,
+        updatedAt: serverTimestamp()
+      });
+
+      // 4. Update user profile
+      await syncProfile({ username: cleanName });
+      setUsernameState(cleanName);
+      return true;
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `usernames/${lowerName}`);
+      return false;
+    }
+  };
+
   const addMemory = async (memoryData: Partial<Memory>) => {
     if (!user) return;
     const memoriesRef = collection(db, 'users', user.uid, 'memories');
@@ -287,6 +343,8 @@ export function SYNKProvider({ children }: { children: ReactNode }) {
     try {
       await addDoc(memoriesRef, {
         uid: user.uid,
+        authorUsername: username || customName || "GUEST",
+        authorPhoto: customPhoto || user.photoURL || null,
         ...scrubbedData,
         createdAt: serverTimestamp()
       });
@@ -365,6 +423,7 @@ export function SYNKProvider({ children }: { children: ReactNode }) {
         if (name === customName) return;
         setCustomNameState(name);
       },
+      username, setUsername, checkUsername,
       customPhoto, setCustomPhoto: async (url: string | null) => {
         if (url === customPhoto) return;
         await syncProfile({ customPhoto: url });

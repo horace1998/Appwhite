@@ -20,34 +20,34 @@ const ONBOARDING_QUESTIONS = [
   },
   {
     id: "directive",
-    question: "設定你的主導協定",
-    sub: "WHICH SYSTEM MODULE IS YOUR PRIORITY?",
+    question: "啟動主導協定",
+    sub: "WHICH SYSTEM MODULE IS YOUR MISSION PRIORITY?",
     options: [
-      { label: "TASK DIRECTIVE / 目標管理", value: "Vault", color: "bg-synk-blue/50" },
-      { label: "RITUAL / 共鳴儀式", value: "Dashboard", color: "bg-cyan-400/50" },
-      { label: "ORACLE / 數位靈感", value: "Oracle", color: "bg-synk-pink/50" }
+      { label: "TASK_DIRECTIVE / 目標歸檔", value: "Vault", color: "bg-zinc-900" },
+      { label: "RITUAL_SYNC / 共鳴儀式", value: "Dashboard", color: "bg-zinc-400" },
+      { label: "ORACLE_STREAM / 數位神諭", value: "Oracle", color: "bg-zinc-100" }
     ]
   },
   {
     id: "frequency",
-    question: "識別你的視覺頻率",
-    sub: "SET THE COLOR SPACE OF YOUR PORTAL.",
+    question: "識別共鳴頻率",
+    sub: "CALIBRATE THE COLOR SPACE OF YOUR PORTAL.",
     options: [
-      { label: "NEON CYAN / 霓虹氰", value: "Electric", color: "bg-cyan-500" },
-      { label: "MINIMAL WHITE / 極簡白", value: "Minimal", color: "bg-white" },
-      { label: "LAVENDER ETHER / 薰衣草紫", value: "Aurora", color: "bg-purple-400" },
-      { label: "DEEP MAGENTA / 深洋紅", value: "Ether", color: "bg-pink-600" }
+      { label: "NEON_CYAN / 數位頻率", value: "Electric", color: "bg-black" },
+      { label: "MINIMAL_ZINC / 極簡頻率", value: "Minimal", color: "bg-zinc-500" },
+      { label: "LAVENDER_ETHER / 以太頻率", value: "Aurora", color: "bg-zinc-200" },
+      { label: "DEEP_MAGENTA / 深層頻率", value: "Ether", color: "bg-zinc-800" }
     ]
   },
   {
     id: "atmosphere",
-    question: "選擇空間大氣",
-    sub: "DETERMINE THE IMMERSION DEPTH.",
+    question: "選擇同步環境",
+    sub: "DETERMINE THE STABILIZATION DEPTH.",
     options: [
-      { label: "STANDARD / 全透視", value: "Standard", color: "bg-white/10" },
-      { label: "NEON / 霓虹增強", value: "Neon", color: "bg-cyan-500/20" },
-      { label: "VOID / 深度虛空", value: "Void", color: "bg-black" },
-      { label: "DREAM / 夢境過濾", value: "Dream", color: "bg-purple-500/20" }
+      { label: "STANDARD / 標準同步", value: "Standard", color: "bg-zinc-100" },
+      { label: "NEON / 增強同步", value: "Neon", color: "bg-zinc-200" },
+      { label: "VOID / 深度虛空", value: "Void", color: "bg-zinc-900" },
+      { label: "DREAM / 夢境過濾", value: "Dream", color: "bg-zinc-50" }
     ]
   }
 ];
@@ -56,11 +56,11 @@ const WelcomeScreen: React.FC<{ onComplete?: () => void }> = ({ onComplete }) =>
   const { user, loading: authLoading, hasProfile } = useSYNK();
   const [phase, setPhase] = useState<"intro" | "pact" | "questions" | "auth" | "loading" | "success">("intro");
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<{ bias: MemberBias, atmosphere: string, directive: string, frequency: string }>({
-    bias: 'None',
-    atmosphere: 'Standard',
-    directive: 'Dashboard',
-    frequency: 'Electric'
+  const [answers, setAnswers] = useState<{ bias: MemberBias | null, atmosphere: string | null, directive: string | null, frequency: string | null }>({
+    bias: null,
+    atmosphere: null,
+    directive: null,
+    frequency: null
   });
   const [tempSelection, setTempSelection] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -193,10 +193,10 @@ const WelcomeScreen: React.FC<{ onComplete?: () => void }> = ({ onComplete }) =>
           displayName: auth.currentUser.displayName || "GUEST_AGENT",
           photoURL: auth.currentUser.photoURL || null,
           isAnonymous: auth.currentUser.isAnonymous,
-          bias: answers.bias,
-          roomAtmosphere: answers.atmosphere,
-          directive: answers.directive,
-          frequency: answers.frequency,
+          bias: answers.bias || 'None',
+          roomAtmosphere: answers.atmosphere || 'Standard',
+          directive: answers.directive || 'Dashboard',
+          frequency: answers.frequency || 'Electric',
           stats: {
             level: 1,
             experience: 0,
@@ -334,11 +334,11 @@ const WelcomeScreen: React.FC<{ onComplete?: () => void }> = ({ onComplete }) =>
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -50 }}
-              className="w-full h-full max-w-md flex flex-col items-center pt-8 px-4"
+              className="w-full max-w-md flex flex-col items-center py-4 px-4 h-full"
             >
-              <div className="flex flex-col items-center text-center gap-3 mb-10">
+              <div className="flex flex-col items-center text-center gap-3 mb-6 shrink-0">
                 <span className="text-[10px] tracking-[0.5em] text-zinc-300 uppercase font-bold">NODE {currentQuestion + 1} // {ONBOARDING_QUESTIONS.length}</span>
-                <h2 className="text-3xl font-black tracking-tighter text-zinc-900 px-2 uppercase min-h-[3.5rem] flex items-center text-center justify-center line-clamp-2">
+                <h2 className="text-3xl font-black tracking-tighter text-zinc-900 px-2 uppercase min-h-[3.5rem] flex items-center text-center justify-center">
                   {ONBOARDING_QUESTIONS[currentQuestion].question}
                 </h2>
                 <p className="text-[9px] md:text-[10px] tracking-[0.4em] text-zinc-400 uppercase px-4 leading-relaxed font-bold">
@@ -346,7 +346,7 @@ const WelcomeScreen: React.FC<{ onComplete?: () => void }> = ({ onComplete }) =>
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 w-full flex-grow">
+              <div className="flex flex-col gap-3 w-full overflow-y-auto custom-scrollbar pr-1 max-h-[40vh] py-2">
                 {ONBOARDING_QUESTIONS[currentQuestion].options.map((opt) => {
                   const isSelected = tempSelection === opt.value;
                   return (
@@ -354,7 +354,7 @@ const WelcomeScreen: React.FC<{ onComplete?: () => void }> = ({ onComplete }) =>
                       key={opt.value}
                       onClick={() => handleAnswerClick(opt.value)}
                       className={cn(
-                        "group relative h-16 border rounded-2xl transition-all text-left px-8 flex items-center justify-between overflow-hidden",
+                        "group relative min-h-[64px] border rounded-2xl transition-all text-left px-8 flex items-center justify-between overflow-hidden shrink-0",
                         isSelected 
                           ? "border-black bg-zinc-50 shadow-sm" 
                           : "border-zinc-100 hover:border-zinc-300 bg-white"
@@ -384,7 +384,7 @@ const WelcomeScreen: React.FC<{ onComplete?: () => void }> = ({ onComplete }) =>
                 })}
               </div>
 
-              <div className="flex items-center justify-between w-full mt-10 mb-8">
+              <div className="flex items-center justify-between w-full mt-8 mb-4 shrink-0">
                 <button
                   onClick={handlePrevStep}
                   className="text-[10px] tracking-[0.4em] text-zinc-300 hover:text-zinc-900 uppercase transition-colors py-4 px-2 font-bold"
@@ -395,7 +395,7 @@ const WelcomeScreen: React.FC<{ onComplete?: () => void }> = ({ onComplete }) =>
                   onClick={handleNextStep}
                   disabled={!tempSelection}
                   className={cn(
-                    "minimal-button px-12 py-4 text-[10px] tracking-[0.3em] flex items-center gap-2",
+                    "minimal-button px-10 py-4 text-[10px] tracking-[0.3em] flex items-center gap-2",
                     !tempSelection && "opacity-20 grayscale"
                   )}
                 >
@@ -470,59 +470,58 @@ const WelcomeScreen: React.FC<{ onComplete?: () => void }> = ({ onComplete }) =>
                   </button>
                 </div>
               
-              {error && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-6 w-full max-w-sm border border-red-500/50 bg-black/40 backdrop-blur-md overflow-hidden flex flex-col items-stretch text-left"
-                >
-                  <div className="bg-red-500/20 px-4 py-2 border-bottom border-red-500/20 flex items-center justify-between">
-                    <span className="text-[9px] font-mono font-bold text-red-400 tracking-[0.3em] uppercase">SYSTEM_DIAGNOSTICS // error</span>
-                    <div className="flex gap-1">
-                      <div className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />
-                      <div className="w-1 h-1 rounded-full bg-red-400/40" />
-                    </div>
-                  </div>
-                  
-                  <div className="p-5 flex flex-col gap-4">
-                    <p className="text-[10px] tracking-[0.1em] text-red-200/90 leading-relaxed font-mono uppercase">
-                      {error.includes("OPENING THE APP IN A NEW TAB") ? (
-                        <>
-                          RESONANCE INTERRUPTED BY BROWSER SECURITY POLICIES.<br />
-                          IFRAME RESTRICTIONS DETECTED.
-                        </>
-                      ) : (
-                        `STATION_ERROR: ${error}`
-                      )}
-                    </p>
-                    
-                    <div className="flex flex-col gap-2 pt-2 border-t border-red-500/10">
-                      <span className="text-[8px] tracking-[0.2em] text-red-400/60 uppercase font-bold">REPAIR_PROTOCOLS:</span>
-                      <ul className="flex flex-col gap-1.5">
-                        <li className="text-[9px] tracking-[0.1em] text-white/40 flex items-start gap-2">
-                          <span className="text-red-500">01</span>
-                          <span>CLICK THE "OPEN IN NEW TAB" ICON IN THE TOP RIGHT OF THIS WINDOW. (CRITICAL)</span>
-                        </li>
-                        <li className="text-[9px] tracking-[0.1em] text-white/40 flex items-start gap-2">
-                          <span className="text-red-500">02</span>
-                          <span>ENSURE "PREVENT CROSS-SITE TRACKING" IS DISABLED IN SAFARI SETTINGS.</span>
-                        </li>
-                        <li className="text-[9px] tracking-[0.1em] text-white/40 flex items-start gap-2">
-                          <span className="text-red-500">03</span>
-                          <span>DISABLE AD-BLOCKERS TEMP. FOR THIS SESSION.</span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    <button 
-                      onClick={() => { setError(null); setLoading(false); }}
-                      className="mt-2 text-[9px] tracking-[0.4em] text-red-400 hover:text-white uppercase font-bold py-2 border border-red-500/30 hover:bg-red-500/20 transition-all text-center"
-                    >
-                      [ RESET_TERMINAL ]
-                    </button>
-                  </div>
-                </motion.div>
+      {error && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-6 w-full max-w-sm border border-black/10 bg-white/80 backdrop-blur-md overflow-hidden flex flex-col items-stretch text-left shadow-2xl rounded-2xl"
+        >
+          <div className="bg-zinc-900 px-4 py-2 flex items-center justify-between">
+            <span className="text-[9px] font-bold text-white tracking-[0.3em] uppercase">SYSTEM_DIAGNOSTICS // auth_error</span>
+            <div className="flex gap-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            </div>
+          </div>
+          
+          <div className="p-5 flex flex-col gap-4">
+            <p className="text-[10px] tracking-[0.1em] text-zinc-600 leading-relaxed font-bold uppercase">
+              {error.includes("OPENING THE APP IN A NEW TAB") ? (
+                <>
+                  RESONANCE INTERRUPTED BY BROWSER SECURITY POLICIES.<br />
+                  IFRAME RESTRICTIONS DETECTED.
+                </>
+              ) : (
+                `STATION_ERROR: ${error}`
               )}
+            </p>
+            
+            <div className="flex flex-col gap-2 pt-2 border-t border-zinc-100">
+              <span className="text-[8px] tracking-[0.2em] text-zinc-400 uppercase font-bold">REPAIR_PROTOCOLS:</span>
+              <ul className="flex flex-col gap-1.5">
+                <li className="text-[9px] tracking-[0.1em] text-zinc-500 flex items-start gap-2">
+                  <span className="text-zinc-900 font-black">01</span>
+                  <span>OPEN THE APP IN A NEW TAB (USE THE TOP-RIGHT ICON). THIS RESOLVES 90% OF AUTH ISSUES.</span>
+                </li>
+                <li className="text-[9px] tracking-[0.1em] text-zinc-500 flex items-start gap-2">
+                  <span className="text-zinc-900 font-black">02</span>
+                  <span>IF SEEING "PROJECT NOT FOUND": YOUR FIREBASE CONSENT SCREEN MAY BE SET TO "INTERNAL". SET TO "EXTERNAL" IN CLOUD CONSOLE.</span>
+                </li>
+                <li className="text-[9px] tracking-[0.1em] text-zinc-500 flex items-start gap-2">
+                  <span className="text-zinc-900 font-black">03</span>
+                  <span>ADD YOUR DOMAIN TO FIREBASE "AUTHORIZED DOMAINS" LIST.</span>
+                </li>
+              </ul>
+            </div>
+
+            <button 
+              onClick={() => { setError(null); setLoading(false); }}
+              className="mt-2 text-[9px] tracking-[0.4em] text-zinc-900 hover:text-white uppercase font-black py-3 border border-zinc-200 hover:bg-zinc-900 transition-all text-center rounded-xl"
+            >
+              [ RESET_TERMINAL ]
+            </button>
+          </div>
+        </motion.div>
+      )}
             </motion.div>
           )}
 

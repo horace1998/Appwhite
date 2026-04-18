@@ -989,9 +989,11 @@ function MemoryPost({ memory, onDelete }: { memory: Memory, onDelete: () => void
       <div className="mt-4 flex flex-col gap-3 px-1 pb-2">
         <div className="flex justify-between items-start">
           <div className="flex flex-col">
-            <span className="text-[12px] font-extrabold tracking-tighter text-zinc-900 uppercase italic">RESONANCE // {currentIdx + 1}</span>
+            <span className="text-[12px] font-extrabold tracking-tighter text-zinc-900 uppercase italic">
+               {memory.authorUsername ? `@${memory.authorUsername.toUpperCase()}` : "RESONANCE"} // {currentIdx + 1}
+            </span>
             <span className="text-[8px] text-zinc-400 font-bold tracking-tighter uppercase font-mono">
-              {new Date(memory.createdAt?.seconds * 1000 || Date.now()).toISOString().split('T')[0]} @ {memory.id.slice(0, 8)}
+              {new Date(memory.createdAt?.seconds * 1000 || Date.now()).toISOString().split('T')[0]}
             </span>
           </div>
           <button onClick={onDelete} className="text-zinc-100 hover:text-red-500 transition-colors p-1">

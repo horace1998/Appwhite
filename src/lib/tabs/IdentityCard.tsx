@@ -7,14 +7,35 @@ import { auth } from "../../firebase";
 import { signOut } from "firebase/auth";
 
 export default function IdentityCard() {
-  const { stats, customBackground, setCustomBackground, bias, roomAtmosphere, setRoomAtmosphere, customName, setCustomName, customPhoto, setCustomPhoto, user } = useSYNK();
+  const { stats, customBackground, setCustomBackground, bias, roomAtmosphere, setRoomAtmosphere, customName, setCustomName, customPhoto, setCustomPhoto, user, username, setUsername, checkUsername } = useSYNK();
   const [showMotivation, setShowMotivation] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState(customName);
 
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [tempUsername, setTempUsername] = useState(username || "");
+  const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
+
   const handleUpdateName = () => {
     setCustomName(tempName);
     setEditingName(false);
+  };
+
+  const handleCheckUsername = async () => {
+    if (tempUsername.length < 3) return;
+    setIsChecking(true);
+    const available = await checkUsername(tempUsername);
+    setIsAvailable(available);
+    setIsChecking(false);
+  };
+
+  const handleConfirmUsername = async () => {
+    const success = await setUsername(tempUsername);
+    if (success) {
+      setEditingUsername(false);
+      setIsAvailable(null);
+    }
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -139,7 +160,67 @@ export default function IdentityCard() {
               <span className="text-[10px] uppercase tracking-widest text-zinc-400 border-b border-zinc-100 pb-4 font-bold">CONFIGURATIONS</span>
               <div className="grid grid-cols-1 gap-8">
                  <div className="flex flex-col gap-3">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-300">NICKNAME</span>
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-300">STATION_ID (UNIQUE)</span>
+                    {editingUsername ? (
+                       <div className="flex flex-col gap-2">
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              value={tempUsername}
+                              onChange={(e) => {
+                                setTempUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''));
+                                setIsAvailable(null);
+                              }}
+                              className="flex-1 bg-zinc-50 border border-zinc-100 px-4 py-3 rounded-2xl text-[11px] text-zinc-900 focus:bg-white focus:ring-1 focus:ring-zinc-900 outline-none uppercase tracking-widest"
+                              placeholder="STATION_ID"
+                              autoFocus
+                            />
+                            <button 
+                              onClick={handleCheckUsername}
+                              disabled={isChecking || tempUsername.length < 3}
+                              className="bg-black text-white px-6 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-800 transition-all disabled:opacity-50"
+                            >
+                              {isChecking ? "..." : "CHECK"}
+                            </button>
+                          </div>
+                          {isAvailable === true && (
+                            <div className="flex items-center justify-between px-2">
+                               <span className="text-[9px] text-green-600 font-bold uppercase tracking-widest">STATION_ID AVAILABLE</span>
+                               <button 
+                                 onClick={handleConfirmUsername}
+                                 className="text-[10px] font-black text-zinc-900 underline underline-offset-4 hover:text-green-600 transition-colors"
+                               >
+                                 CLAIM ID
+                               </button>
+                            </div>
+                          )}
+                          {isAvailable === false && (
+                             <span className="text-[9px] text-red-500 font-bold uppercase tracking-widest px-2 italic">ID ALREADY ASSIGNED OR INVALID</span>
+                          )}
+                          <div className="flex justify-start">
+                            <button 
+                              onClick={() => { setEditingUsername(false); setIsAvailable(null); }}
+                              className="text-[8px] tracking-[0.2em] text-zinc-400 hover:text-zinc-900 uppercase font-bold"
+                            >
+                              [ CANCEL ]
+                            </button>
+                          </div>
+                       </div>
+                    ) : (
+                      <button 
+                        onClick={() => { setTempUsername(username); setEditingUsername(true); }}
+                        className="w-full py-3.5 text-[10px] text-left uppercase tracking-widest border border-zinc-100 rounded-2xl text-zinc-400 hover:bg-zinc-50 hover:text-zinc-900 px-5 transition-all flex items-center justify-between group"
+                      >
+                        <span className={cn(username ? "text-zinc-900 font-black" : "")}>
+                           {username ? `@${username.toUpperCase()}` : "UNASSIGNED_STATION"}
+                        </span>
+                        <Shield className="w-3 h-3 opacity-20 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    )}
+                 </div>
+
+                 <div className="flex flex-col gap-3">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-300">IDENTIFIER</span>
                     {editingName ? (
                       <div className="flex gap-2">
                         <input 

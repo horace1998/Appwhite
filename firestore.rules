@@ -30,7 +30,7 @@ service cloud.firestore {
     // --- Entity Validations ---
 
     function isValidUser(data) {
-      return data.size() >= 2 && data.size() <= 15
+      return data.size() >= 2 && data.size() <= 16
         && data.stats is map
         && data.stats.level is int && data.stats.level >= 1
         && data.stats.experience is int && data.stats.experience >= 0
@@ -38,7 +38,8 @@ service cloud.firestore {
         && data.stats.completed_goals is int && data.stats.completed_goals >= 0
         && (data.bias in ["None", "Karina", "Winter", "Giselle", "Ningning"])
         && (data.get('customName', '') is string && data.get('customName', '').size() <= 100)
-        && (data.get('customPhoto', '') is string && data.get('customPhoto', '').size() <= 500000) // Support small base64 or long URLs
+        && (data.get('username', '') is string && data.get('username', '').size() <= 32)
+        && (data.get('customPhoto', '') is string && data.get('customPhoto', '').size() <= 500000)
         && (data.get('customBackground', '') is string && data.get('customBackground', '').size() <= 500000)
         && (data.get('roomAtmosphere', 'Standard') is string)
         && (data.get('directive', 'Archiving') is string)
@@ -54,15 +55,26 @@ service cloud.firestore {
     }
 
     function isValidMemory(data, userId) {
-      return data.size() >= 3 && data.size() <= 7
+      return data.size() >= 3 && data.size() <= 9
         && data.uid == userId
         && data.media is list
         && data.media.size() > 0 && data.media.size() <= 10
+        && (data.get('authorUsername', '') is string && data.get('authorUsername', '').size() <= 32)
+        && (data.get('authorPhoto', '') is string && data.get('authorPhoto', '').size() <= 1000)
         && (data.get('caption', '') is string && data.get('caption', '').size() <= 2000)
         && (data.get('taggedTaskId', '') is string && data.get('taggedTaskId', '').size() <= 128);
     }
 
     // --- Collection Routes ---
+
+    match /usernames/{username} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() 
+        && isValidId(username)
+        && incoming().uid == request.auth.uid
+        && (incoming().get('updatedAt', request.time) == request.time);
+      allow delete: if isSignedIn() && existing().uid == request.auth.uid;
+    }
 
     match /users/{userId} {
       allow get: if isOwner(userId);
@@ -77,7 +89,7 @@ service cloud.firestore {
         && (
           // Action: Profile Update
           incoming().diff(existing()).affectedKeys().hasOnly([
-            'stats', 'bias', 'customName', 'customPhoto', 'customBackground', 
+            'stats', 'bias', 'customName', 'username', 'customPhoto', 'customBackground', 
             'roomAtmosphere', 'directive', 'frequency', 'updatedAt'
           ])
         );
