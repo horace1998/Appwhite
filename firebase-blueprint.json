@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "The root profile document for an authenticated user.",
+      "type": "object",
+      "properties": {
+        "stats": {
+          "type": "object",
+          "properties": {
+            "level": { "type": "integer" },
+            "experience": { "type": "integer" },
+            "crystals": { "type": "integer" },
+            "completed_goals": { "type": "integer" }
+          },
+          "required": ["level", "experience", "crystals", "completed_goals"]
+        },
+        "bias": {
+          "type": "string",
+          "enum": ["None", "Karina", "Winter", "Giselle", "Ningning"]
+        },
+        "customName": { "type": "string" },
+        "customPhoto": { "type": "string" },
+        "customBackground": { "type": "string" },
+        "roomAtmosphere": { "type": "string" },
+        "directive": { "type": "string" },
+        "frequency": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["stats", "bias"]
+    },
+    "Goal": {
+      "title": "Goal Directive",
+      "description": "A specific mission or goal for the user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "title": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["pulse", "orbit", "galaxy"]
+        },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "title", "type", "completed"]
+    },
+    "Memory": {
+      "title": "Oracle Memory",
+      "description": "A captured moment with multiple media items, tagged tasks, and captions.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "caption": { "type": "string" },
+        "media": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["image", "video"] },
+              "url": { "type": "string" },
+              "duration": { "type": "number", "description": "Duration for video in seconds" }
+            },
+            "required": ["type", "url"]
+          }
+        },
+        "taggedTaskId": { "type": "string" },
+        "taggedTaskTitle": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "media", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Storage for user profile metadata and stats."
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": "Goal",
+      "description": "User-specific goals and directives."
+    },
+    "/users/{userId}/memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "Vertical scroll feed collection of user memories."
+    }
+  }
+}

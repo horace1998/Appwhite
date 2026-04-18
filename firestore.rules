@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validations ---
+
+    function isValidUser(data) {
+      return data.size() >= 2 && data.size() <= 15
+        && data.stats is map
+        && data.stats.level is int && data.stats.level >= 1
+        && data.stats.experience is int && data.stats.experience >= 0
+        && data.stats.crystals is int && data.stats.crystals >= 0
+        && data.stats.completed_goals is int && data.stats.completed_goals >= 0
+        && (data.bias in ["None", "Karina", "Winter", "Giselle", "Ningning"])
+        && (data.get('customName', '') is string && data.get('customName', '').size() <= 100)
+        && (data.get('customPhoto', '') is string && data.get('customPhoto', '').size() <= 500000) // Support small base64 or long URLs
+        && (data.get('customBackground', '') is string && data.get('customBackground', '').size() <= 500000)
+        && (data.get('roomAtmosphere', 'Standard') is string)
+        && (data.get('directive', 'Archiving') is string)
+        && (data.get('frequency', 'Electric') is string);
+    }
+
+    function isValidGoal(data, userId) {
+      return data.size() >= 4 && data.size() <= 6
+        && data.uid == userId
+        && data.title is string && data.title.size() <= 200
+        && (data.type in ["pulse", "orbit", "galaxy"])
+        && data.completed is bool;
+    }
+
+    function isValidMemory(data, userId) {
+      return data.size() >= 3 && data.size() <= 7
+        && data.uid == userId
+        && data.media is list
+        && data.media.size() > 0 && data.media.size() <= 10
+        && (data.get('caption', '') is string && data.get('caption', '').size() <= 2000)
+        && (data.get('taggedTaskId', '') is string && data.get('taggedTaskId', '').size() <= 128);
+    }
+
+    // --- Collection Routes ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      
+      allow create: if isOwner(userId) 
+        && isValidUser(incoming())
+        && incoming().updatedAt == request.time;
+
+      allow update: if isOwner(userId)
+        && isValidUser(incoming())
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Profile Update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'stats', 'bias', 'customName', 'customPhoto', 'customBackground', 
+            'roomAtmosphere', 'directive', 'frequency', 'updatedAt'
+          ])
+        );
+
+      // Sub-collections
+      match /goals/{goalId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(goalId);
+        
+        allow create: if isOwner(userId)
+          && isValidGoal(incoming(), userId)
+          && incoming().createdAt == request.time;
+
+        allow update: if isOwner(userId)
+          && isValidGoal(incoming(), userId)
+          && incoming().uid == existing().uid
+          && (
+            // Action: Toggle Completion
+            incoming().diff(existing()).affectedKeys().hasOnly(['completed'])
+          );
+          
+        allow delete: if isOwner(userId);
+      }
+
+      match /memories/{memoryId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(memoryId);
+        
+        allow create: if isOwner(userId)
+          && isValidMemory(incoming(), userId)
+          && incoming().createdAt == request.time;
+          
+        allow update: if isOwner(userId)
+          && isValidMemory(incoming(), userId)
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt;
+
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
